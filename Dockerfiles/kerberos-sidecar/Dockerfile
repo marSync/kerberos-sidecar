@@ -76,7 +76,7 @@ RUN addgroup -g 65535 kerberos && \
         --uid 65535 \
         no-create-home
 
-FROM scratch AS sidecar
+FROM scratch AS filesystem
 
 COPY --from=base /etc/passwd /etc/passwd
 COPY --from=base /etc/group /etc/group
@@ -92,8 +92,10 @@ COPY --from=base /bin/sleep /bin/sleep
 COPY --from=base /usr/lib/krb5-client /usr/lib/krb5-client
 COPY --from=base /usr/lib/krb5 /usr/lib/krb5
 
-# chown chmod /dev/shm
-
-# MAKE FEWER COPY COMMANDS
+# use stage "filesystem" to store runtime files
+# create stage "sidecar" for resulting image (copy or use from "filesystem" stage)
 
 VOLUME ["/krb5","/dev/shm","/etc/krb5.conf.d"]
+# chown chmod /dev/shm (kinit can not create /dev/shm/krb5cc_0)
+# RUN chown kerberos:kerberos /dev/shm && \
+#     chmod 700 /dev/shm
