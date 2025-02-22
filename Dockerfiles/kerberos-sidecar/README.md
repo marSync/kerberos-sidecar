@@ -73,6 +73,20 @@ services:
 
 #### Draft note to run kerberos-sidecar manually
 
+* Create kerberos principal and get the keytab
+
+```sh
+kinit admin/admin@MYREALM.INTERNAL
+
+kadmin -q "addprinc user@REALM.INTERNAL"
+
+kadmin -q "ktadd -k /path/to/your.keytab user@REALM.INTERNAL"
+```
+
+* Get the keytab to sidecar container system
+
+* Create sidecar container  
+
 ```sh
 docker container create -e PERIOD_SECONDS=30 -e OPTIONS="-k -i" --name kerby -it --network kerberos-backend --mount type=tmpfs,destination=/dev/shm kerberos-sidecar:latest
 
