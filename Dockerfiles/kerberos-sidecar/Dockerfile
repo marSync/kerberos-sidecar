@@ -118,6 +118,11 @@ COPY --from=base /usr/lib/krb5 /usr/lib/krb5
 FROM scratch AS image
 
 ARG CONTAINER_USERNAME="kerberos"
+ARG REFRESH_PERIOD=3600
+ARG OPTIONS="-k"
+
+ENV PERIOD_SECONDS=${REFRESH_PERIOD} \
+    OPTIONS=${OPTIONS}
 
 COPY --from=filesystem / /
 
