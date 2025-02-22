@@ -5,8 +5,9 @@ FROM ${BASE_IMAGE} AS base
 ARG CONTAINER_CONFIGURATION="./conf"
 ARG CONTAINER_ENTRYPOINT="docker-entrypoint.sh"
 ARG APPLICATION_CONFIGURATION="krb5.conf"
+ARG CONTAINER_USERNAME="kerberos"
 
-ENV RUNTIME_BINARIES="echo ls kinit klist sh sleep" \
+ENV RUNTIME_BINARIES="echo ls kinit klist sh sleep date" \
     LIB_PATH="/usr/lib/krb5-client" \
     LIB_FILTER='s/.*=>\s*(\/[\/A-z0-9\.-]+).*/\1/p' \
     LIB_BUFFER="/tmp/libs.txt" \
@@ -29,8 +30,10 @@ COPY --chmod=654 \
     ${CONTAINER_CONFIGURATION}/${CONTAINER_ENTRYPOINT} /entrypoint.sh
 COPY --chmod=644 \
     ${CONTAINER_CONFIGURATION}/${APPLICATION_CONFIGURATION} /etc/krb5.conf
+# <REMOVE ON RELEASE>
 COPY --chmod=644 \
     ${CONTAINER_CONFIGURATION}/test.conf /etc/krb5.conf.d/test.conf
+# </REMOVE ON RELEASE>
 
 # Get all libraries and interpreters required by the runtime
 RUN library_buffer="" && \
@@ -69,33 +72,57 @@ RUN mkdir ${LIB_PATH} && \
     done
 
 # Create service user and group
-RUN addgroup -g 65535 kerberos && \
+RUN addgroup -g 65535 ${CONTAINER_USERNAME} && \
     adduser --shell /sbin/nologin \
         --disabled-password \
-        --ingroup kerberos kerberos \
+        --ingroup ${CONTAINER_USERNAME} ${CONTAINER_USERNAME} \
         --uid 65535 \
-        no-create-home
+        no-create-home && \
+    # Create service working directories
+    mkdir -p \
+        /krb5 \
+        /etc/krb5.conf.d
 
 FROM scratch AS filesystem
 
 COPY --from=base /etc/passwd /etc/passwd
 COPY --from=base /etc/group /etc/group
 COPY --from=base /etc/krb5.conf /etc/krb5.conf
+COPY --from=base /etc/krb5.conf.d /etc/krb5.conf.d/
+# <REMOVE ON RELEASE>
 COPY --from=base /etc/krb5.conf.d/test.conf /etc/krb5.conf.d/test.conf
-COPY --from=base /entrypoint.sh /entrypoint.sh
+# </REMOVE ON RELEASE>
+COPY \
+    --chown=65535:65535 \
+    --chmod=550 \
+    --from=base \
+        /entrypoint.sh \
+        /entrypoint.sh
+COPY \
+    --chown=65535:65535 \
+    --from=base \
+        /krb5 \
+        /krb5
+# Copy runtime binaries
 COPY --from=base /usr/bin/kinit /usr/bin/kinit
 COPY --from=base /usr/bin/klist /usr/bin/klist
 COPY --from=base /bin/ls /bin/ls
 COPY --from=base /bin/sh /bin/sh
+COPY --from=base /bin/date /bin/date
 COPY --from=base /bin/echo /bin/echo
 COPY --from=base /bin/sleep /bin/sleep
+# Copy krb5 client libraries and plugins
 COPY --from=base /usr/lib/krb5-client /usr/lib/krb5-client
 COPY --from=base /usr/lib/krb5 /usr/lib/krb5
 
-# use stage "filesystem" to store runtime files
-# create stage "sidecar" for resulting image (copy or use from "filesystem" stage)
+FROM scratch AS image
 
-VOLUME ["/krb5","/dev/shm","/etc/krb5.conf.d"]
-# chown chmod /dev/shm (kinit can not create /dev/shm/krb5cc_0)
-# RUN chown kerberos:kerberos /dev/shm && \
-#     chmod 700 /dev/shm
+ARG CONTAINER_USERNAME="kerberos"
+
+COPY --from=filesystem / /
+
+USER ${CONTAINER_USERNAME}
+
+VOLUME ["/krb5","/etc/krb5.conf.d"]
+
+ENTRYPOINT ["/entrypoint.sh"]
