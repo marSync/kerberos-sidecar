@@ -54,17 +54,29 @@ services:
 ## Roadmap
 
 * Modify ENTRYPOINT:
-  - verify KRB5 configuration is being passed
-  - verify KEYTAB / USERNAME:PASSWORD are being passed
-  - verify connectivity to KRB5 service
-  - set automated INITIAL authentication towards KRB5 service
+  - [] verify KRB5 configuration is being passed
+  - [] verify KEYTAB is being passed
+  - [] verify connectivity to KRB5 service
+  - [] set automated INITIAL authentication towards KRB5 service
+    - [] Check [secret documentation to set target point for keytab](https://docs.docker.com/reference/compose-file/services/#long-syntax-4)
 * Test client application:
-  - verify ability to get authentication cache
-  - set KRB5CCNAME
-  - verify ability to authenticate to secured service
+  - [x] verify ability to get authentication cache
+  - [] set KRB5CCNAME
+  - [] verify ability to authenticate to secured service
 * Add docker-compose PoC
-  - combine all components to a single compose file
+  - [] combine all components to a single compose file
 * Release feature
-  - verify main repository components consistency
-  - adjust ENV
-  - add PROFILE to initiate SIDECAR only when needed
+  - [] verify main repository components consistency
+  - [] adjust ENV
+  - [] add PROFILE to initiate SIDECAR only when needed
+
+
+#### Draft note to run kerberos-sidecar manually
+
+```sh
+docker container create -e PERIOD_SECONDS=30 -e OPTIONS="-k -i" --name kerby -it --network kerberos-backend --mount type=tmpfs,destination=/dev/shm kerberos-sidecar:latest
+
+docker cp conf/client.keytab kerby:/krb5/
+
+docker start kerby
+```
