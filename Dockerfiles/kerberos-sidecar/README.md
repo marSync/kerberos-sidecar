@@ -4,7 +4,7 @@ Kerberos sidecar container is used for the ability to authenticate,rotate authen
 
 ## Deployment with Zabbix Server
 
-### Prerequisites
+### Prerequisites for the Zabbix Server container
 
 For [Web monitoring](https://www.zabbix.com/documentation/7.2/en/manual/web_monitoring) to work `Zabbix Server` must comply with specified dependencies.
 
@@ -12,17 +12,118 @@ For [Web monitoring](https://www.zabbix.com/documentation/7.2/en/manual/web_moni
 | ----------- | ----------- | ----------- | ----------- |
 | `curl`        | Send requests to Web services | `cURL` compiled with GSS-API, Kerberos <br>`( using flag --with-gssapi )` | `8.9.1` AND `8.12.1` |
 
-* Container prerequisites:
-  1. Set environment variable `KRB5CCNAME` pointing to credential cache (e.g. `KRB5CCNAME=/tmp/client.keytab`).  
+* `Zabbix Server` container prerequisites:
+  1. Set environment variable `KRB5CCNAME` pointing to [credential cache](https://web.mit.edu/kerberos/krb5-latest/doc/basic/ccache_def.html) (e.g. `KRB5CCNAME=/tmp/client.keytab`).  
   2. Provide appropriate Kerberos5 MIT configuration for service to reach Kerberos services (e.g. `/etc/krb5.conf`).  
-  3. For additional information on how to set-up kerberos environment follow [official documentation](https://web.mit.edu/kerberos/krb5-1.21/doc/).  
+  3. For additional information on how to set-up kerberos environment follow [official documentation](https://web.mit.edu/kerberos/krb5-latest/doc/).  
 
 * Infrastructure prerequisites:
-  1. Kerberos5 MIT services configured and running healthy.
-  2. Kerberos5 MIT services synchronized using UTC.
+  1. `Kerberos5 MIT services` configured and running healthy.
+  2. `Kerberos5 MIT services` synchronized using UTC.
   3. Host or platform running containers synchronized using UTC.
-  4. Service or user [kerberos principles](https://web.mit.edu/kerberos/krb5-1.21/doc/admin/database.html#principals) configured.  
-  5. `Web monitor` target service is configured for Kerberos authentication.  
+  4. Service or user [kerberos principles](https://web.mit.edu/kerberos/krb5-latest/doc/admin/database.html#principals) configured.  
+  5. `Web monitor` target service is configured for Kerberos authentication (e.g. `nginx`/`httpd`, other... ). For the [inspiration](https://wiki.centos.org/HowTos(2f)HttpKerberosAuth.html).  
+  6. Reachability between Zabbix Server and Kerberos services.
+
+### Prerequisites for the kerberos-sidecar container
+
+For the kerberos-sidecar container to work and provide [credential cache](https://web.mit.edu/kerberos/krb5-latest/doc/basic/ccache_def.html) to the Zabbix Server container first environment **MUST** to supply these prerequisites:
+
+- `kerberos-sidecar` [configuration](https://web.mit.edu/kerberos/krb5-1.12/doc/admin/conf_files/krb5_conf.html) mounted to container in `/etc/krb5.conf.d/`.  
+- A [keytab](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html) file for selected principal mounted to container in `/krb5/`.  
+- Default configuration for `kerberos-sidecar` `configuration` and `keytab` file found [here](conf/krb5.conf). <br>Default configuration can be adjusted and mounted to the container using `volumes` or `rebuilding` the image.
+
+### Running with `docker compose`
+
+For automated deployment with docker, approach with `docker compose` is recommended.
+
+#### Basic setup: kerberos-sidecar
+
+```yaml
+services:
+  kerberos-sidecar:
+    image: kerberos-sidecar:latest
+    scale: 2
+    profiles:
+      - kerberos
+    configs:
+      - source: krb5_sidecar_realm
+        target: /etc/krb5.conf.d/krb5-sidecar.conf
+    secrets:
+      - source: krb5_keytab
+        target: /krb5/client.keytab
+        uid: "65535"
+        gid: "65535"
+    networks:
+      # Network with reachability to Kerberos Server
+      - secured-dmz
+    volumes:
+      - shared-cache:/var/cache/krb5:rw
+
+configs:
+  krb5_sidecar_realm:
+    # Path to ConfigMap on local system
+    file: /path/to/kerberos-sidecar.conf
+
+networks:
+  secured-dmz:
+    # Ensure the network reachability to Kerberos Server
+    # If re-using existing network, set:
+    # external: true
+    name: secured-dmz
+    driver: bridge
+
+secrets:
+  krb5_keytab:
+    # Path to KEYTAB file for selected service
+    file: /path/to/zabbix-server.keytab
+
+volumes:
+  shared-cache:
+    name: shared-cache
+
+```
+
+#### Basic setup: zabbix-server
+
+```yaml
+  zabbix-server:
+    image: ${ZABBIX_SERVER_IMAGE:-zabbix/zabbix-server-pgsql:ubuntu-7.2.1}
+    container_name: server
+    configs:
+      - source: krb5_client_realm
+        target: /etc/client.conf
+    restart: unless-stopped
+    ports:
+      - "10051:10051"
+    environment:
+      DB_SERVER_HOST: postgres
+      DB_SERVER_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      KRB5CCNAME: /tmp/ccache
+    depends_on:
+      - postgres
+    networks:
+      - secured-dmz
+    volumes:
+      # Ensure the shared volume set between kerberos-sidecar and zabbix-server
+      - shared-cache:/tmp/
+
+configs:
+  krb5_client_realm:
+    # Path to ConfigMap on local system
+    file: /path/to/client.conf
+
+```
+
+#### Initiate containers
+
+```sh
+docker compose -f /path/to/docker-compose.yml up -d
+
+```
 
 ## Container build description
 
@@ -43,7 +144,7 @@ Authentication sidecar container is build primarily on Kerberos5 MIT client pack
 
 ### Runtime binaries
 
-To create a lightweight KRB5 container the [Scratch](https://hub.docker.com/_/scratch) image was used. The container includes only necessary utilities for the runtime. By default the container is running as `kerberos` user with no priviledged permissions.
+To create a lightweight KRB5 container the [Scratch](https://hub.docker.com/_/scratch) image was used. The container includes only necessary utilities for the runtime. By default the container is running as `kerberos` user with no privileged permissions.
 
 | Binary      | Description |
 | ----------- | ----------- |
@@ -53,7 +154,7 @@ To create a lightweight KRB5 container the [Scratch](https://hub.docker.com/_/sc
 | kinit | Authenticate to Kerberos5 MIT |
 | klist | List available token          |
 | sh    | Interact with system          |
-| sleep | Wait for next syncronization  |
+| sleep | Wait for next synchronization  |
 
 ## Roadmap
 
@@ -76,29 +177,4 @@ To create a lightweight KRB5 container the [Scratch](https://hub.docker.com/_/sc
   - [ ] add PROFILE to initiate SIDECAR only when needed
   - [ ] add usage documentation
   - [x] add links to official KRB5 MIT project
-  - [x] add notes about container host time syncronization
-
-
-#### Draft note to run kerberos-sidecar manually
-
-* Create kerberos principal and get the keytab
-
-```sh
-kinit admin/admin@MYREALM.INTERNAL
-
-kadmin -q "addprinc user@REALM.INTERNAL"
-
-kadmin -q "ktadd -k /path/to/your.keytab user@REALM.INTERNAL"
-```
-
-* Get the keytab to sidecar container system
-
-* Create sidecar container  
-
-```sh
-docker container create -e PERIOD_SECONDS=30 -e OPTIONS="-k -i" --name kerby -it --network kerberos-backend --mount type=tmpfs,destination=/dev/shm kerberos-sidecar:latest
-
-docker cp conf/client.keytab kerby:/krb5/
-
-docker start kerby
-```
+  - [x] add notes about container host time synchronization
