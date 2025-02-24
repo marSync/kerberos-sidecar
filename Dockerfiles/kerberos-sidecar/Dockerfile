@@ -30,10 +30,6 @@ COPY --chmod=654 \
     ${CONTAINER_CONFIGURATION}/${CONTAINER_ENTRYPOINT} /entrypoint.sh
 COPY --chmod=644 \
     ${CONTAINER_CONFIGURATION}/${APPLICATION_CONFIGURATION} /etc/krb5.conf
-# <REMOVE ON RELEASE>
-COPY --chmod=644 \
-    ${CONTAINER_CONFIGURATION}/test.conf /etc/krb5.conf.d/test.conf
-# </REMOVE ON RELEASE>
 
 # Get all libraries and interpreters required by the runtime
 RUN library_buffer="" && \
@@ -81,17 +77,16 @@ RUN addgroup -g 65535 ${CONTAINER_USERNAME} && \
     # Create service working directories
     mkdir -p \
         /krb5 \
-        /etc/krb5.conf.d
+        /etc/krb5.conf.d \
+        /var/cache/krb5
 
 FROM scratch AS filesystem
 
+# Copy container configuration
 COPY --from=base /etc/passwd /etc/passwd
 COPY --from=base /etc/group /etc/group
 COPY --from=base /etc/krb5.conf /etc/krb5.conf
 COPY --from=base /etc/krb5.conf.d /etc/krb5.conf.d/
-# <REMOVE ON RELEASE>
-COPY --from=base /etc/krb5.conf.d/test.conf /etc/krb5.conf.d/test.conf
-# </REMOVE ON RELEASE>
 COPY \
     --chown=65535:65535 \
     --chmod=550 \
@@ -103,6 +98,12 @@ COPY \
     --from=base \
         /krb5 \
         /krb5
+COPY \
+    --chown=65535:65535 \
+    --from=base \
+        /var/cache/krb5 \
+        /var/cache/krb5
+
 # Copy runtime binaries
 COPY --from=base /usr/bin/kinit /usr/bin/kinit
 COPY --from=base /usr/bin/klist /usr/bin/klist
@@ -119,7 +120,7 @@ FROM scratch AS image
 
 ARG CONTAINER_USERNAME="kerberos"
 ARG REFRESH_PERIOD=3600
-ARG OPTIONS="-k"
+ARG OPTIONS=""
 
 ENV PERIOD_SECONDS=${REFRESH_PERIOD} \
     OPTIONS=${OPTIONS}
@@ -128,6 +129,6 @@ COPY --from=filesystem / /
 
 USER ${CONTAINER_USERNAME}
 
-VOLUME ["/krb5","/etc/krb5.conf.d"]
+VOLUME ["/krb5", "/etc/krb5.conf.d", "/var/cache/krb5"]
 
 ENTRYPOINT ["/entrypoint.sh"]
