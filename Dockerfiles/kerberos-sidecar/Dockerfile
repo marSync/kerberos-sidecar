@@ -7,7 +7,7 @@ ARG CONTAINER_ENTRYPOINT="docker-entrypoint.sh"
 ARG APPLICATION_CONFIGURATION="krb5.conf"
 ARG CONTAINER_USERNAME="kerberos"
 
-ENV RUNTIME_BINARIES="echo ls kinit klist sh sleep date" \
+ENV RUNTIME_BINARIES="echo date ls kinit klist sh sleep" \
     LIB_PATH="/usr/lib/krb5-client" \
     LIB_FILTER='s/.*=>\s*(\/[\/A-z0-9\.-]+).*/\1/p' \
     LIB_BUFFER="/tmp/libs.txt" \
@@ -130,5 +130,8 @@ COPY --from=filesystem / /
 USER ${CONTAINER_USERNAME}
 
 VOLUME ["/krb5", "/etc/krb5.conf.d", "/var/cache/krb5"]
+
+HEALTHCHECK --interval=15s --timeout=30s --start-period=15s --retries=3 \
+    CMD ["/bin/sh", "-c", "klist || exit 1"]
 
 ENTRYPOINT ["/entrypoint.sh"]
