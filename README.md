@@ -31,7 +31,7 @@ For the kerberos-sidecar container to work and provide [credential cache](https:
 
 - `kerberos-sidecar` [configuration](https://web.mit.edu/kerberos/krb5-1.12/doc/admin/conf_files/krb5_conf.html) mounted to container in `/etc/krb5.conf.d/`.  
 - A [keytab](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html) file for selected principal mounted to container in `/krb5/`.  
-- Default configuration for `kerberos-sidecar` `configuration` and `keytab` file found [here](conf/krb5.conf). <br>Default configuration can be adjusted and mounted to the container using `volumes` or `rebuilding` the image.
+- Default configuration for `kerberos-sidecar` `configuration` and `keytab` file found [here](krb5-container/conf/krb5.conf). <br>Default configuration can be adjusted and mounted to the container using `volumes` or `rebuilding` the image.
 
 ### Running with `docker compose`
 

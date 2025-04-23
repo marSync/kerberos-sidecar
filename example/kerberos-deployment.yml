@@ -1,0 +1,57 @@
+# services:
+
+#   kerberos:
+#     image: kerberos:latest
+#     container_name: kerberos
+#     environment:
+#       - KRB5_REALM=EXAMPLE.COM
+#       - KRB5_KDC=kerberos.example.com
+#       - KRB5_ADMIN_SERVER=kerberos.example.com
+#     ports:
+#       - "88:88/udp"
+#       - "749:749"
+#     volumes:
+#       - /etc/krb5.conf:/etc/krb5.conf
+#       - /etc/krb5.keytab:/etc/krb5.keytab
+#     networks:
+#       - kerberos_network
+#     restart: unless-stopped
+
+#   kerberos_client:
+#     image: kerberos-client:latest
+#     container_name: kerberos_client
+#     environment:
+#       - KRB5_REALM=EXAMPLE.COM
+#       - KRB5_KDC=kerberos.example.com
+#     depends_on:
+#       - kerberos
+#     networks:
+#       - kerberos_network
+#     restart: unless-stopped
+#   client_app:
+#     image: client_app:latest
+#     container_name: client_app
+#     environment:
+#       - KRB5_REALM=EXAMPLE.COM
+#       - KRB5_KDC=kerberos.example.com
+#     depends_on:
+#       - kerberos_client
+#     networks:
+#       - kerberos_network
+#     restart: unless-stopped
+
+# networks:
+#   kerberos_network:
+#     driver: bridge
+
+# volumes:
+#   kerberos_data:
+#     driver: local
+#   client_app_data:
+#     driver: local
+#   kerberos_client_data:
+#     driver: local
+#   kerberos_client_config:
+#     driver: local
+#   kerberos_config:
+#     driver: local
